@@ -91,6 +91,15 @@ class ProviderRegistry {
       GOOGLE_GENAI_API_KEY: "google",
       GROQ_API_KEY: "groq",
       OPENROUTER_API_KEY: "openrouter",
+      ZAI_API_KEY: "zai",
+      MISTRAL_API_KEY: "mistral",
+      TOGETHER_API_KEY: "together",
+      FIREWORKS_API_KEY: "fireworks",
+      DEEPSEEK_API_KEY: "deepseek",
+      CO_API_KEY: "cohere",
+      XAI_API_KEY: "xai",
+      PERPLEXITY_API_KEY: "perplexity",
+      LITELLM_API_KEY: "litellm",
     }
 
     for (const [envKey, providerId] of Object.entries(envMappings)) {

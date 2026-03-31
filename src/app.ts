@@ -92,11 +92,116 @@ export class BeastApp {
     }
 
     // Google
-    const googleKey = process.env.GOOGLE_API_KEY
+    const googleKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY
     if (googleKey) {
       try {
         const { GoogleProvider } = require("./providers/google")
         this.providers.registerFactory("google", (c) => new GoogleProvider({ ...c, apiKey: googleKey }))
+      } catch { /* not available */ }
+    }
+
+    // OpenRouter
+    const openrouterKey = process.env.OPENROUTER_API_KEY
+    if (openrouterKey) {
+      try {
+        const { OpenRouterProvider } = require("./providers/openrouter")
+        this.providers.registerFactory("openrouter", (c) => new OpenRouterProvider({ ...c, apiKey: openrouterKey }))
+      } catch { /* not available */ }
+    }
+
+    // Groq
+    const groqKey = process.env.GROQ_API_KEY
+    if (groqKey) {
+      try {
+        const { GroqProvider } = require("./providers/groq")
+        this.providers.registerFactory("groq", (c) => new GroqProvider({ ...c, apiKey: groqKey }))
+      } catch { /* not available */ }
+    }
+
+    // Mistral
+    const mistralKey = process.env.MISTRAL_API_KEY
+    if (mistralKey) {
+      try {
+        const { MistralProvider } = require("./providers/mistral")
+        this.providers.registerFactory("mistral", (c) => new MistralProvider({ ...c, apiKey: mistralKey }))
+      } catch { /* not available */ }
+    }
+
+    // Together AI
+    const togetherKey = process.env.TOGETHER_API_KEY
+    if (togetherKey) {
+      try {
+        const { TogetherProvider } = require("./providers/together")
+        this.providers.registerFactory("together", (c) => new TogetherProvider({ ...c, apiKey: togetherKey }))
+      } catch { /* not available */ }
+    }
+
+    // Fireworks AI
+    const fireworksKey = process.env.FIREWORKS_API_KEY
+    if (fireworksKey) {
+      try {
+        const { FireworksProvider } = require("./providers/fireworks")
+        this.providers.registerFactory("fireworks", (c) => new FireworksProvider({ ...c, apiKey: fireworksKey }))
+      } catch { /* not available */ }
+    }
+
+    // DeepSeek
+    const deepseekKey = process.env.DEEPSEEK_API_KEY
+    if (deepseekKey) {
+      try {
+        const { DeepSeekProvider } = require("./providers/deepseek")
+        this.providers.registerFactory("deepseek", (c) => new DeepSeekProvider({ ...c, apiKey: deepseekKey }))
+      } catch { /* not available */ }
+    }
+
+    // Cohere
+    const cohereKey = process.env.CO_API_KEY
+    if (cohereKey) {
+      try {
+        const { CohereProvider } = require("./providers/cohere")
+        this.providers.registerFactory("cohere", (c) => new CohereProvider({ ...c, apiKey: cohereKey }))
+      } catch { /* not available */ }
+    }
+
+    // xAI / Grok
+    const xaiKey = process.env.XAI_API_KEY
+    if (xaiKey) {
+      try {
+        const { XAIProvider } = require("./providers/xai")
+        this.providers.registerFactory("xai", (c) => new XAIProvider({ ...c, apiKey: xaiKey }))
+      } catch { /* not available */ }
+    }
+
+    // Perplexity
+    const perplexityKey = process.env.PERPLEXITY_API_KEY
+    if (perplexityKey) {
+      try {
+        const { PerplexityProvider } = require("./providers/perplexity")
+        this.providers.registerFactory("perplexity", (c) => new PerplexityProvider({ ...c, apiKey: perplexityKey }))
+      } catch { /* not available */ }
+    }
+
+    // Z.AI / GLM
+    const zaiKey = process.env.ZAI_API_KEY
+    if (zaiKey) {
+      try {
+        const { ZAIProvider } = require("./providers/zai")
+        this.providers.registerFactory("zai", (c) => new ZAIProvider({ ...c, apiKey: zaiKey }))
+      } catch { /* not available */ }
+    }
+
+    // Ollama (local - always register)
+    try {
+      const { OllamaProvider } = require("./providers/ollama")
+      this.providers.registerFactory("ollama", (c) => new OllamaProvider(c))
+    } catch { /* not available */ }
+
+    // LiteLLM (proxy)
+    const litellmKey = process.env.LITELLM_API_KEY
+    if (litellmKey || process.env.LITELLM_BASE_URL) {
+      try {
+        const { LiteLLMProvider } = require("./providers/litellm")
+        this.providers.registerFactory("litellm", (c) => new LiteLLMProvider({ ...c, apiKey: litellmKey }))
       } catch { /* not available */ }
     }
   }
