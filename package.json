@@ -4,7 +4,7 @@
   "description": "The ultimate AI coding agent — born from the best of Claude Code, Gemini CLI, and OpenCode",
   "main": "dist/app.js",
   "bin": {
-    "beast": "dist/cli/index.js"
+    "beast": "bin/beast.js"
   },
   "scripts": {
     "build": "tsc",
