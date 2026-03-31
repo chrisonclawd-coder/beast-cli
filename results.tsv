@@ -14,3 +14,5 @@ timestamp	feature	source_cli	status	notes
 2026-03-31T14:57:09+00:00	cloud-delegation-interface	ClaudeCode	COMPLETE	CloudDelegation with task submission
 2026-03-31T14:57:41+00:00	session-resume	ClaudeCode	COMPLETE	SessionManager with auto-save and checkpoint
 2026-03-31T14:58:15+00:00	session-resume	ClaudeCode	COMPLETE	 VoiceInputInterface - push-to-talk abstraction
+2026-03-31T15:13:16+00:00	utils	AllCLIs	COMPLETE	Logger with levels/colors, format helpers, timer, safe JSON
+2026-03-31T15:15:10+00:00	auto-compaction	ClaudeCode	COMPLETE	Summary + sliding-window strategies, configurable thresholds
