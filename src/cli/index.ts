@@ -53,8 +53,8 @@ async function cmdChat() {
   const app = new BeastApp({ projectRoot: process.cwd() })
   await app.init()
 
-  const active = app.providers.listActive()
-  if (active.length === 0) {
+  const available = app.providers.listAvailable()
+  if (available.length === 0) {
     console.error("No providers available. Set API keys:")
     console.error("  export OPENAI_API_KEY=...")
     console.error("  export ANTHROPIC_API_KEY=...")
@@ -62,7 +62,7 @@ async function cmdChat() {
     process.exit(1)
   }
 
-  const providerId = args[1] || active[0]
+  const providerId = args[1] || available[0]
   const modelId = args[2] || "default"
   app.setActiveProvider(providerId, modelId)
 
@@ -259,8 +259,8 @@ Examples:
   const app = new BeastApp({ projectRoot })
   await app.init()
 
-  const active = app.providers.listActive()
-  if (active.length === 0) {
+  const available = app.providers.listAvailable()
+  if (available.length === 0) {
     console.error("No providers available. Set API keys:")
     console.error("  export OPENAI_API_KEY=...")
     console.error("  export ANTHROPIC_API_KEY=...")
@@ -268,7 +268,7 @@ Examples:
     process.exit(1)
   }
 
-  const providerId = parsed.provider || active[0]
+  const providerId = parsed.provider || available[0]
   const modelId = parsed.model
   app.setActiveProvider(providerId, modelId)
   const provider = app.getActiveProvider()
@@ -540,15 +540,15 @@ Examples:
   const app = new BeastApp({ projectRoot })
   await app.init()
 
-  const active = app.providers.listActive()
-  if (active.length === 0) {
+  const available = app.providers.listAvailable()
+  if (available.length === 0) {
     console.error("No providers available. Set API keys:")
     console.error("  export OPENAI_API_KEY=...")
     console.error("  export ANTHROPIC_API_KEY=...")
     process.exit(1)
   }
 
-  const providerId = providerOverride || active[0]
+  const providerId = providerOverride || available[0]
   app.setActiveProvider(providerId, modelId)
   const provider = app.getActiveProvider()
 

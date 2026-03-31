@@ -124,7 +124,7 @@ export class OpenAICompatibleProvider implements Provider {
   }
 
   async complete(messages: Message[], options?: CompleteOptions): Promise<CompleteResponse> {
-    const model = options?.model || this.defaultModel
+    const model = (options?.model && options.model !== "default") ? options.model : this.defaultModel
     
     const openaiMessages = this.convertMessages(messages, options?.systemPrompt)
     const body: Record<string, unknown> = {
@@ -173,7 +173,7 @@ export class OpenAICompatibleProvider implements Provider {
   }
 
   async *stream(messages: Message[], options?: CompleteOptions): AsyncIterableIterator<ResponseChunk> {
-    const model = options?.model || this.defaultModel
+    const model = (options?.model && options.model !== "default") ? options.model : this.defaultModel
     
     const openaiMessages = this.convertMessages(messages, options?.systemPrompt)
     const body: Record<string, unknown> = {

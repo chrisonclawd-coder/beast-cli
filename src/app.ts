@@ -54,12 +54,14 @@ export class BeastApp {
     await this.config.load()
     await this.features.load()
 
+    // Register providers BEFORE auto-discovery so factories exist
+    this.registerProviders()
+    
     const discovered = this.providers.autoDiscover()
     if (discovered.length > 0) {
       logger.info(`Discovered providers: ${discovered.join(", ")}`)
     }
 
-    this.registerProviders()
     this.tools.registerTools(builtinTools)
     const loadedSkills = await this.skills.loadAll()
     logger.info(`Loaded ${loadedSkills.length} skills`)
