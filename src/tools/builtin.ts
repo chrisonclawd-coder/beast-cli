@@ -226,6 +226,15 @@ export const bashTool: Tool = {
       
       let stdout = ""
       let stderr = ""
+      let resolved = false
+      
+      const cleanup = () => {
+        // Remove all listeners to prevent memory leaks
+        proc.stdout.removeAllListeners("data")
+        proc.stderr.removeAllListeners("data")
+        proc.removeAllListeners("close")
+        proc.removeAllListeners("error")
+      }
       
       proc.stdout.on("data", (data: Buffer) => {
         stdout += data.toString()
@@ -236,6 +245,9 @@ export const bashTool: Tool = {
       })
       
       proc.on("close", (code: number) => {
+        if (resolved) return
+        resolved = true
+        cleanup()
         resolve({
           success: code === 0,
           content: stdout,
@@ -245,6 +257,13 @@ export const bashTool: Tool = {
       })
       
       proc.on("error", (error: Error) => {
+        if (resolved) return
+        resolved = true
+        cleanup()
+        // Kill the process if it's still running
+        if (!proc.killed) {
+          proc.kill()
+        }
         resolve({
           success: false,
           content: "",

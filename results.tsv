@@ -20,3 +20,4 @@ timestamp	feature	source_cli	status	notes
 2026-03-31T15:20:13+00:00	mcp-client	ClaudeCode/GeminiCLI	COMPLETE	MCP client with stdio/SSE transports, tool/resource discovery
 2026-03-31T15:23:15+00:00	
 2026-03-31T16:40:03+00:00	path-traversal-fix	security	FIXED	Added validatePath() to all file tools - prevents ../ attacks
+2026-03-31T16:41:09+00:00	code-injection-fix	security	FIXED	Sanitized hook condition evaluation - blocked dangerous patterns
