@@ -190,8 +190,10 @@ interface SwarmArgs {
 }
 
 function parseSwarmArgs(): SwarmArgs {
-  const taskIndex = args.findIndex(a => !a.startsWith("-"))
-  const task = taskIndex >= 1 ? args[taskIndex] : ""
+  // Skip the subcommand name (first arg like "swarm" or "subagent")
+  const rest = args.slice(1)
+  const taskIndex = rest.findIndex(a => !a.startsWith("-"))
+  const task = taskIndex >= 0 ? rest[taskIndex] : ""
   
   const getFlag = (name: string, defaultValue: string): string => {
     const idx = args.indexOf(name)
