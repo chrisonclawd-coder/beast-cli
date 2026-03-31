@@ -8,6 +8,38 @@
 import type { Tool, ToolResult, ToolContext, Permission } from "./types"
 import { z } from "zod"
 
+// ============ SECURITY HELPERS ============
+
+/**
+ * Validate that a resolved path is within the allowed working directory.
+ * Prevents path traversal attacks using ../ sequences.
+ */
+function validatePath(workingDir: string, inputPath: string): { valid: boolean; resolvedPath: string; error?: string } {
+  const path = require("path")
+  
+  // Resolve the path relative to working directory
+  const resolvedPath = path.resolve(workingDir, inputPath)
+  
+  // Normalize both paths for comparison
+  const normalizedWorkingDir = path.normalize(workingDir)
+  const normalizedResolvedPath = path.normalize(resolvedPath)
+  
+  // Check if resolved path starts with working directory
+  // Use path.relative to check containment
+  const relative = path.relative(normalizedWorkingDir, normalizedResolvedPath)
+  
+  // If relative path starts with .., it's outside working directory
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    return {
+      valid: false,
+      resolvedPath,
+      error: `Path traversal denied: "${inputPath}" resolves outside working directory`,
+    }
+  }
+  
+  return { valid: true, resolvedPath }
+}
+
 // ============ FILE TOOLS ============
 
 const readFileSchema = z.object({
@@ -26,8 +58,17 @@ export const readFileTool: Tool = {
       const fs = await import("fs/promises")
       const path = await import("path")
       
-      const filePath = path.resolve(ctx.workingDir, params.path as string)
-      const content = await fs.readFile(filePath, "utf-8")
+      // Validate path to prevent traversal attacks
+      const pathValidation = validatePath(ctx.workingDir, params.path as string)
+      if (!pathValidation.valid) {
+        return {
+          success: false,
+          content: "",
+          error: pathValidation.error,
+        }
+      }
+      
+      const content = await fs.readFile(pathValidation.resolvedPath, "utf-8")
       
       let lines = content.split("\n")
       const offset = (params.offset as number) || 1
@@ -73,7 +114,17 @@ export const writeFileTool: Tool = {
       const fs = await import("fs/promises")
       const path = await import("path")
       
-      const filePath = path.resolve(ctx.workingDir, params.path as string)
+      // Validate path to prevent traversal attacks
+      const pathValidation = validatePath(ctx.workingDir, params.path as string)
+      if (!pathValidation.valid) {
+        return {
+          success: false,
+          content: "",
+          error: pathValidation.error,
+        }
+      }
+      
+      const filePath = pathValidation.resolvedPath
       
       // Ensure directory exists
       const dir = path.dirname(filePath)
@@ -111,8 +162,17 @@ export const editFileTool: Tool = {
       const fs = await import("fs/promises")
       const path = await import("path")
       
-      const filePath = path.resolve(ctx.workingDir, params.path as string)
-      const content = await fs.readFile(filePath, "utf-8")
+      // Validate path to prevent traversal attacks
+      const pathValidation = validatePath(ctx.workingDir, params.path as string)
+      if (!pathValidation.valid) {
+        return {
+          success: false,
+          content: "",
+          error: pathValidation.error,
+        }
+      }
+      
+      const content = await fs.readFile(pathValidation.resolvedPath, "utf-8")
       
       const oldText = params.oldText as string
       const newText = params.newText as string
@@ -126,7 +186,7 @@ export const editFileTool: Tool = {
       }
       
       const newContent = content.replace(oldText, newText)
-      await fs.writeFile(filePath, newContent, "utf-8")
+      await fs.writeFile(pathValidation.resolvedPath, newContent, "utf-8")
       
       return {
         success: true,
@@ -227,7 +287,17 @@ export const globTool: Tool = {
       const fs = await import("fs/promises")
       const path = await import("path")
       
-      const searchDir = path.resolve(ctx.workingDir, (params.path as string) || ".")
+      // Validate path to prevent traversal attacks
+      const pathValidation = validatePath(ctx.workingDir, (params.path as string) || ".")
+      if (!pathValidation.valid) {
+        return {
+          success: false,
+          content: "",
+          error: pathValidation.error,
+        }
+      }
+      
+      const searchDir = pathValidation.resolvedPath
       const pattern = params.pattern as string
       
       const files: string[] = []
@@ -284,7 +354,17 @@ export const grepTool: Tool = {
       const fs = await import("fs/promises")
       const path = await import("path")
       
-      const searchDir = path.resolve(ctx.workingDir, (params.path as string) || ".")
+      // Validate path to prevent traversal attacks
+      const pathValidation = validatePath(ctx.workingDir, (params.path as string) || ".")
+      if (!pathValidation.valid) {
+        return {
+          success: false,
+          content: "",
+          error: pathValidation.error,
+        }
+      }
+      
+      const searchDir = pathValidation.resolvedPath
       const pattern = params.pattern as string
       const includePattern = (params.include as string) || "*"
       
