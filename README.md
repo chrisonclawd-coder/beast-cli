@@ -11,11 +11,33 @@ Beast CLI is a provider-agnostic AI coding assistant that combines the best feat
 - **From OpenCode:** Dual-agent plan/execute, git-backed sessions, Ink TUI, provider-agnostic design
 - **From Codex CLI:** OS-level sandbox, cloud delegation, web search
 
+## Supported Providers
+
+Beast CLI supports 15+ LLM providers out of the box:
+
+| Provider | Env Key | Description |
+|----------|---------|-------------|
+| **OpenAI** | `OPENAI_API_KEY` | GPT-4, o1, o3, o4 series |
+| **Anthropic** | `ANTHROPIC_API_KEY` | Claude 3.5, Claude 4 series |
+| **Google** | `GOOGLE_API_KEY` / `GEMINI_API_KEY` | Gemini Pro, Gemini Flash |
+| **OpenRouter** | `OPENROUTER_API_KEY` | Unified access to 100+ models |
+| **Groq** | `GROQ_API_KEY` | Ultra-fast Llama/Mixtral inference |
+| **Mistral** | `MISTRAL_API_KEY` | Mistral Large, Codestral, Pixtral |
+| **Together AI** | `TOGETHER_API_KEY` | Open-source model hosting |
+| **Fireworks AI** | `FIREWORKS_API_KEY` | Fast serverless inference |
+| **DeepSeek** | `DEEPSEEK_API_KEY` | DeepSeek V3 + R1 reasoning |
+| **Cohere** | `CO_API_KEY` | Command series enterprise LLMs |
+| **xAI / Grok** | `XAI_API_KEY` | Grok 2, Grok 3 series |
+| **Perplexity** | `PERPLEXITY_API_KEY` | Sonar series with citations |
+| **Z.AI / GLM** | `ZAI_API_KEY` | GLM-4, GLM-5, reasoning models |
+| **Ollama** | *(none - local)* | Local LLM inference |
+| **LiteLLM** | `LITELLM_API_KEY` | Unified proxy for any provider |
+
 ## Features
 
 | Feature | Description |
 |---------|-------------|
-| 🔄 Multi-provider | OpenAI, Anthropic, Google — pick your AI |
+| 🔄 Multi-provider | 15+ providers — pick your AI |
 | 🛠️ Tool system | Built-in tools with permission checks |
 | 🧠 Dual agents | Plan mode (read-only) + Execute mode |
 | 📦 Skills | Load custom skills from `.beast/skills/` |
