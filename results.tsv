@@ -6,3 +6,4 @@ timestamp	feature	source_cli	status	notes
 2026-03-31T14:46:59+00:00	ink-tui	OpenCode	COMPLETE	ChatView, InputBar, BeastApp components with vim mode
 2026-03-31T14:48:54+00:00	skills-loader	ClaudeCode	COMPLETE	SkillLoader with SKILL.md parsing and caching
 2026-03-31T14:50:19+00:00	hooks-executor	ClaudeCode	COMPLETE	HookExecutor with before/after event support
+2026-03-31T14:51:46+00:00	swarm-coordinator	ClaudeCode	COMPLETE	SwarmCoordinator with worktree isolation and merge
