@@ -7,6 +7,7 @@
 
 import * as fs from "fs/promises"
 import * as path from "path"
+import { spawn, ChildProcess } from "child_process"
 
 export type SandboxBackend = "none" | "docker" | "bwrap" | "nsjail" | "firejail"
 
@@ -39,6 +40,71 @@ export interface SandboxResult {
   stdout: string
   stderr: string
   timedOut: boolean
+}
+
+/**
+ * Helper to spawn a process with proper cleanup to prevent memory leaks.
+ * Ensures all event listeners are removed after process completes.
+ */
+function spawnWithCleanup(
+  command: string,
+  args: string[],
+  options: {
+    cwd?: string
+    env?: NodeJS.ProcessEnv
+    timeout?: number
+  } = {}
+): Promise<{ proc: ChildProcess; result: Promise<SandboxResult> }> {
+  const proc = spawn(command, args, {
+    cwd: options.cwd,
+    env: options.env || process.env,
+    timeout: options.timeout,
+  })
+
+  let stdout = ""
+  let stderr = ""
+  let resolved = false
+
+  const cleanup = () => {
+    proc.stdout?.removeAllListeners("data")
+    proc.stderr?.removeAllListeners("data")
+    proc.removeAllListeners("close")
+    proc.removeAllListeners("error")
+  }
+
+  proc.stdout?.on("data", (data) => { stdout += data.toString() })
+  proc.stderr?.on("data", (data) => { stderr += data.toString() })
+
+  const result = new Promise<SandboxResult>((resolve) => {
+    proc.on("close", (code) => {
+      if (resolved) return
+      resolved = true
+      cleanup()
+      resolve({
+        exitCode: code ?? 1,
+        stdout,
+        stderr,
+        timedOut: false,
+      })
+    })
+
+    proc.on("error", (err) => {
+      if (resolved) return
+      resolved = true
+      cleanup()
+      if (!proc.killed) {
+        proc.kill()
+      }
+      resolve({
+        exitCode: 1,
+        stdout,
+        stderr: err.message,
+        timedOut: false,
+      })
+    })
+  })
+
+  return Promise.resolve({ proc, result })
 }
 
 // Default sandbox config
@@ -107,47 +173,18 @@ export class SandboxManager {
    * Execute directly (no sandbox)
    */
   private async executeDirect(options: SandboxOptions): Promise<SandboxResult> {
-    const { spawn } = await import("child_process")
-    
-    return new Promise((resolve) => {
-      const proc = spawn(options.command, options.args, {
-        cwd: options.cwd,
-        env: options.env || process.env,
-        timeout: options.timeout || this.config.timeoutMs,
-      })
-
-      let stdout = ""
-      let stderr = ""
-
-      proc.stdout?.on("data", (data) => { stdout += data.toString() })
-      proc.stderr?.on("data", (data) => { stderr += data.toString() })
-
-      proc.on("close", (code) => {
-        resolve({
-          exitCode: code ?? 1,
-          stdout,
-          stderr,
-          timedOut: false,
-        })
-      })
-
-      proc.on("error", (err) => {
-        resolve({
-          exitCode: 1,
-          stdout,
-          stderr: err.message,
-          timedOut: false,
-        })
-      })
+    const { result } = await spawnWithCleanup(options.command, options.args, {
+      cwd: options.cwd,
+      env: options.env,
+      timeout: options.timeout || this.config.timeoutMs,
     })
+    return result
   }
 
   /**
    * Execute in Docker container
    */
   private async executeDocker(options: SandboxOptions): Promise<SandboxResult> {
-    const { spawn } = await import("child_process")
-    
     const dockerArgs = [
       "run", "--rm",
       "-v", `${this.projectRoot}:/workspace`,
@@ -160,33 +197,10 @@ export class SandboxManager {
       ...options.args,
     ]
 
-    return new Promise((resolve) => {
-      const proc = spawn("docker", dockerArgs, { timeout: this.config.timeoutMs })
-      
-      let stdout = ""
-      let stderr = ""
-
-      proc.stdout?.on("data", (data) => { stdout += data.toString() })
-      proc.stderr?.on("data", (data) => { stderr += data.toString() })
-
-      proc.on("close", (code) => {
-        resolve({
-          exitCode: code ?? 1,
-          stdout,
-          stderr,
-          timedOut: false,
-        })
-      })
-
-      proc.on("error", (err) => {
-        resolve({
-          exitCode: 1,
-          stdout,
-          stderr: err.message,
-          timedOut: false,
-        })
-      })
+    const { result } = await spawnWithCleanup("docker", dockerArgs, {
+      timeout: this.config.timeoutMs,
     })
+    return result
   }
 
   /**
@@ -203,8 +217,6 @@ export class SandboxManager {
    * Execute with bubblewrap (bwrap)
    */
   private async executeBwrap(options: SandboxOptions): Promise<SandboxResult> {
-    const { spawn } = await import("child_process")
-    
     const bwrapArgs = [
       "--ro-bind", "/usr", "/usr",
       "--ro-bind", "/lib", "/lib",
@@ -221,32 +233,16 @@ export class SandboxManager {
       ...options.args,
     ]
 
-    return new Promise((resolve) => {
-      const proc = spawn("bwrap", bwrapArgs, {
+    try {
+      const { result } = await spawnWithCleanup("bwrap", bwrapArgs, {
         cwd: options.cwd,
         timeout: this.config.timeoutMs,
       })
-
-      let stdout = ""
-      let stderr = ""
-
-      proc.stdout?.on("data", (data) => { stdout += data.toString() })
-      proc.stderr?.on("data", (data) => { stderr += data.toString() })
-
-      proc.on("close", (code) => {
-        resolve({
-          exitCode: code ?? 1,
-          stdout,
-          stderr,
-          timedOut: false,
-        })
-      })
-
-      proc.on("error", () => {
-        // Fallback to direct execution if bwrap not available
-        this.executeDirect(options).then(resolve)
-      })
-    })
+      return result
+    } catch {
+      // Fallback to direct execution if bwrap not available
+      return this.executeDirect(options)
+    }
   }
 
   /**
@@ -270,8 +266,6 @@ export class SandboxManager {
    * Execute with firejail
    */
   private async executeFirejail(options: SandboxOptions): Promise<SandboxResult> {
-    const { spawn } = await import("child_process")
-    
     const firejailArgs = [
       "--quiet",
       "--private",
@@ -281,33 +275,17 @@ export class SandboxManager {
       "--",
       options.command,
       ...options.args,
-    ].filter(Boolean)
+    ].filter(Boolean) as string[]
 
-    return new Promise((resolve) => {
-      const proc = spawn("firejail", firejailArgs as string[], {
+    try {
+      const { result } = await spawnWithCleanup("firejail", firejailArgs, {
         cwd: options.cwd,
         timeout: this.config.timeoutMs,
       })
-
-      let stdout = ""
-      let stderr = ""
-
-      proc.stdout?.on("data", (data) => { stdout += data.toString() })
-      proc.stderr?.on("data", (data) => { stderr += data.toString() })
-
-      proc.on("close", (code) => {
-        resolve({
-          exitCode: code ?? 1,
-          stdout,
-          stderr,
-          timedOut: false,
-        })
-      })
-
-      proc.on("error", () => {
-        this.executeDirect(options).then(resolve)
-      })
-    })
+      return result
+    } catch {
+      return this.executeDirect(options)
+    }
   }
 
   /**
