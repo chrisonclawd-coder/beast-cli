@@ -1,20 +1,28 @@
 {
   "name": "beast-cli",
   "version": "0.2.0",
-  "description": "The ultimate AI coding agent — born from the best of Claude Code, Gemini CLI, and OpenCode",
-  "main": "dist/app.js",
+  "description": "🦁 The ultimate AI coding agent",
+  "main": "dist/index.js",
   "bin": {
-    "beast": "bin/beast.js"
+    "beast": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
-    "build": "tsc",
-    "start": "npx tsx src/cli/index.ts chat",
+    "build": "tsup",
+    "start": "node dist/index.js",
     "dev": "npx tsx src/cli/index.ts chat",
     "dev:bun": "bun run src/cli/index.ts chat",
     "test": "echo 'no tests yet'",
     "lint": "tsc --noEmit",
-    "link": "npm link"
+    "prepublishOnly": "npm run build"
   },
+  "engines": {
+    "node": ">=18"
+  },
+  "preferGlobal": true,
   "keywords": [
     "ai",
     "cli",
@@ -38,6 +46,7 @@
   "devDependencies": {
     "@types/node": "^20.11.0",
     "@types/react": "^18.3.0",
+    "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typescript": "^5.5.0"
   }
