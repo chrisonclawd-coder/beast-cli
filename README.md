@@ -83,6 +83,45 @@ beast chat [provider] [model]   # Start interactive chat (default)
 beast config [key] [value]      # Get/set configuration
 beast features                  # List feature flags
 beast resume [session-id]       # List or resume sessions
+beast swarm "<task>"            # Run parallel agents with git worktrees
+beast subagent "<task>"         # Delegate a task to a single agent
+```
+
+## 🐜 Swarm Mode
+
+Beast can run multiple agents in parallel using git worktrees for isolation:
+
+```bash
+# Run 3 agents in parallel to fix type errors
+beast swarm "fix all type errors" --agents 3
+
+# Auto-merge results when done
+beast swarm "add tests for all modules" --merge auto
+
+# Specify isolation mode
+beast swarm "refactor to use async/await" --isolation worktree --agents 2
+```
+
+### Swarm Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--agents <n>` | 2 | Number of parallel agents |
+| `--isolation <mode>` | worktree | Isolation mode: `worktree` or `directory` |
+| `--merge <strategy>` | manual | Merge strategy: `auto` or `manual` |
+| `--provider <name>` | auto | Provider to use |
+| `--model <name>` | default | Model to use |
+
+### Subagent Mode
+
+For single task delegation:
+
+```bash
+# Delegate a focused task to one agent
+beast subagent "write unit tests for src/providers/"
+
+# Specify provider
+beast subagent "add JSDoc comments" --provider anthropic
 ```
 
 ## Chat Slash Commands
