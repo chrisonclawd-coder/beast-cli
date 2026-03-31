@@ -2,7 +2,7 @@
 
 ## Vision
 
-Beast CLI is a provider-agnostic, open-source AI coding agent that combines the best features of Claude Code, Gemini CLI, and OpenCode into a single terminal tool.
+Beast CLI is a provider-agnostic, open-source AI coding agent that combines the best features of Claude Code, Gemini CLI, OpenCode, and Codex CLI into a single terminal tool.
 
 ## Core Principles
 
@@ -147,11 +147,56 @@ Built with Ink (React for CLI):
 - Resume any past session
 - Review changes via standard git tools
 
+### Layer 8: Sandbox (from Codex CLI)
+
+**OS-level isolation — not just permission prompts:**
+- File system isolation (workspace-only writes by default)
+- Network access control (block outbound per-sandbox)
+- Process execution limits (CPU, memory, time)
+- Three modes: `workspace-write` (default), `read-only`, `full-access`
+
+```typescript
+interface SandboxConfig {
+  mode: "workspace-write" | "read-only" | "full-access"
+  networkEnabled: boolean
+  allowedPaths: string[]
+  maxProcesses: number
+  maxMemoryMB: number
+}
+```
+
+### Layer 9: Cloud Delegation (from Codex CLI)
+
+**Offload tasks to cloud agents:**
+- Run long tasks in the cloud while CLI stays responsive
+- Cloud agents have isolated environments
+- Results sync back to local workspace
+- `beast cloud <task>` or within session
+
+### Layer 10: Web Search (from Codex CLI)
+
+**Cached + Live modes with safety:**
+- **Cached mode** (default): Pre-indexed results, fast, prompt-injection-safe
+- **Live mode**: Real-time fetch for up-to-date info
+- **Disabled**: Turn off entirely
+- All web results treated as untrusted content
+
+### Layer 11: Feature Flags (from Codex CLI)
+
+**Per-project feature toggles:**
+```bash
+beast features list
+beast features enable sandbox_v2
+beast features disable voice
+```
+- Persisted in `.beast/config.json`
+- Override per-run with CLI flags
+
 ## Tech Stack
 
 | Component | Choice | Why |
 |-----------|--------|-----|
-| Language | TypeScript | Ecosystem, type safety, same as all 3 CLIs |
+| Language | TypeScript | Ecosystem, type safety, same as all 4 CLIs |
 | Runtime | Bun (primary), Node.js (fallback) | Fast, native TS, compatible |
 | Terminal UI | Ink (React) | Proven by Claude Code + OpenCode |
 | Validation | Zod | Type-safe schemas |
@@ -219,6 +264,20 @@ beast-cli/
 │   │   ├── manager.ts        # Session lifecycle
 │   │   ├── store.ts          # Git-backed storage
 │   │   └── resume.ts         # Session resume
+│   ├── sandbox/
+│   │   ├── isolate.ts        # OS-level sandbox (chroot/namespace)
+│   │   ├── network.ts        # Network access control
+│   │   └── config.ts         # Sandbox configuration
+│   ├── cloud/
+│   │   ├── delegate.ts       # Cloud task delegation
+│   │   └── sync.ts           # Result sync back to local
+│   ├── search/
+│   │   ├── cached.ts         # Cached search (pre-indexed)
+│   │   ├── live.ts           # Live web search
+│   │   └── safety.ts         # Prompt injection protection
+│   ├── features/
+│   │   ├── flags.ts          # Feature flag engine
+│   │   └── registry.ts       # Flag registry
 │   ├── ui/
 │   │   ├── app.tsx           # Main UI
 │   │   ├── chat.tsx          # Chat panel
