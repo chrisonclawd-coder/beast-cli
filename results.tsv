@@ -1,0 +1,2 @@
+timestamp	feature	source_cli	status	notes
+2025-03-31T14:30	provider-registry	OpenCode/Gemini	COMPLETE	Registry + OpenAI/Anthropic/Google providers
