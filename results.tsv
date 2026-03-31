@@ -8,3 +8,4 @@ timestamp	feature	source_cli	status	notes
 2026-03-31T14:50:19+00:00	hooks-executor	ClaudeCode	COMPLETE	HookExecutor with before/after event support
 2026-03-31T14:51:46+00:00	swarm-coordinator	ClaudeCode	COMPLETE	SwarmCoordinator with worktree isolation and merge
 2026-03-31T14:52:44+00:00	web-search-interface	OpenCode	COMPLETE	WebSearch with DuckDuckGo engine and caching
+2026-03-31T14:54:04+00:00	feature-flags	OpenCode	COMPLETE	FeatureFlagManager with persistence
