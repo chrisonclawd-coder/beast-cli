@@ -129,8 +129,7 @@ async function cmdConfig() {
   if (!key) {
     console.log(JSON.stringify(app.config.get(), null, 2))
   } else if (value) {
-    const cfg = app.config.get() as any
-    cfg[key] = value
+    app.config.set(key as any, value)
     await app.config.save()
     console.log(`Set ${key} = ${value}`)
   } else {
