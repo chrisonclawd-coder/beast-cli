@@ -8,55 +8,51 @@
 
 | Category | Issues Found | Issues Fixed |
 |----------|-------------|--------------|
-| Path Traversal | 5 | 0 |
-| Code Injection | 1 | 0 |
-| Memory Leaks | 3 | 0 |
+| Path Traversal | 5 | 5 ✅ |
+| Code Injection | 1 | 1 ✅ |
+| Memory Leaks | 3 | 3 ✅ |
 | Hardcoded Secrets | 0 | N/A |
 | Dependency Vulnerabilities | 0 | N/A |
 
-## Issues Found
+## Issues Fixed
 
-### 1. Path Traversal Vulnerability (HIGH)
+### 1. Path Traversal Vulnerability (HIGH) ✅ FIXED
 **Location:** `src/tools/builtin.ts`
-**Files affected:** 
-- `readFileTool` (line 29)
-- `writeFileTool` (line 72)
-- `editFileTool` (line 113)
-- `globTool` (line 220)
-- `grepTool` (line 267)
+**Commit:** `fa7b186`
 
-**Description:** The file tools use `path.resolve(ctx.workingDir, params.path)` but don't validate that the resolved path remains within `ctx.workingDir`. An attacker could use `../` sequences to escape the working directory and read/write arbitrary files.
+**Description:** The file tools used `path.resolve(ctx.workingDir, params.path)` without validating that the resolved path remains within `ctx.workingDir`. An attacker could use `../` sequences to escape the working directory and read/write arbitrary files.
 
-**Example exploit:**
-```javascript
-readFileTool.execute({ path: "../../../etc/passwd" }, ctx)
-```
+**Fix Applied:**
+- Added `validatePath()` helper function that checks if resolved path stays within working directory
+- Applied validation to `readFileTool`, `writeFileTool`, `editFileTool`, `globTool`, and `grepTool`
+- Paths with `../` sequences that escape working directory are now rejected with error message
 
-**Fix:** Add path validation to ensure resolved path is within working directory.
+### 2. Code Injection via new Function() (MEDIUM) ✅ FIXED
+**Location:** `src/hooks/executor.ts`
+**Commit:** `c36f4bb`
 
-### 2. Code Injection via new Function() (MEDIUM)
-**Location:** `src/hooks/executor.ts` (line 200-206)
+**Description:** The `evaluateCondition` method used `new Function()` with the `condition` string directly interpolated. If hook configurations came from untrusted sources, this could lead to arbitrary code execution.
 
-**Description:** The `evaluateCondition` method uses `new Function()` with the `condition` string directly interpolated. If hook configurations come from untrusted sources, this could lead to arbitrary code execution.
+**Fix Applied:**
+- Added input validation with safe character whitelist pattern
+- Blocked dangerous patterns (eval, require, process, global, constructor, etc.)
+- Added `'use strict'` to evaluated expressions
+- Converted legacy `contains` syntax to `.includes()` for backwards compatibility
 
-```javascript
-const fn = new Function(
-  "tool", "params", "result", "session",
-  `return ${condition}`  // Unsanitized input
-)
-```
-
-**Fix:** Sanitize the condition string or use a safe expression evaluator.
-
-### 3. Event Listener Memory Leaks (LOW)
+### 3. Event Listener Memory Leaks (LOW) ✅ FIXED
 **Location:** 
-- `src/tools/builtin.ts` (bashTool)
-- `src/sandbox/manager.ts` (multiple execute methods)
-- `src/hooks/executor.ts` (runCommand)
+- `src/tools/builtin.ts` (bashTool) - Commit: `1032941`
+- `src/sandbox/manager.ts` (multiple execute methods) - Commit: `c86f276`
+- `src/hooks/executor.ts` (runCommand) - Commit: `8b4dc88`
 
-**Description:** Event listeners are attached to child process streams but not explicitly cleaned up in all error paths. While Node.js eventually cleans these up, explicit cleanup is better practice.
+**Description:** Event listeners were attached to child process streams but not explicitly cleaned up in all error paths. While Node.js eventually cleans these up, explicit cleanup is better practice.
 
-**Fix:** Add explicit cleanup in error handlers or use AbortController pattern.
+**Fix Applied:**
+- Created `spawnWithCleanup()` helper function in sandbox/manager.ts
+- Added `cleanup()` function to remove all listeners after process completes
+- Added `resolved` flag to prevent duplicate resolution
+- Added process kill on error if still running
+- Updated all spawn calls to use proper cleanup pattern
 
 ## No Issues Found
 
@@ -74,8 +70,23 @@ const fn = new Function(
 ### Git History
 - ✅ No accidentally committed secrets found in git history
 
+## Commits
+
+1. `fa7b186` - fix(security): add path traversal validation to file tools
+2. `c36f4bb` - fix(security): sanitize hook condition evaluation to prevent code injection
+3. `1032941` - fix(security): add proper cleanup to bash tool to prevent memory leaks
+4. `c86f276` - fix(security): add spawnWithCleanup helper to prevent memory leaks in sandbox
+5. `8b4dc88` - fix(security): add proper cleanup to hook executor to prevent memory leaks
+
 ## Recommendations
 
-1. **Immediate:** Fix path traversal vulnerability in builtin tools
-2. **Short-term:** Sanitize hook condition expressions
-3. **Long-term:** Add explicit cleanup for event listeners in child processes
+### Immediate (Completed)
+- ✅ Fix path traversal vulnerability in builtin tools
+- ✅ Sanitize hook condition expressions
+- ✅ Add explicit cleanup for event listeners in child processes
+
+### Future Improvements
+1. Consider adding rate limiting to bash commands
+2. Add audit logging for security-sensitive operations
+3. Consider implementing a capability-based security model
+4. Add tests for security boundary conditions
