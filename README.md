@@ -2,6 +2,8 @@
 
 > The ultimate AI coding agent — born from the best of Claude Code, Gemini CLI, OpenCode, and Codex CLI.
 
+![Beast CLI Demo](./screenshots/demo.svg)
+
 ## What is Beast?
 
 Beast CLI is a provider-agnostic AI coding assistant that combines the best features from the top coding agents:
