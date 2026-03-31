@@ -35,7 +35,7 @@ export async function resumeCommand(
     }
     
     for (const session of sessions.slice(0, 10)) {
-      const date = new Date(session.timestamp).toLocaleString()
+      const date = new Date(session.createdAt).toLocaleString()
       console.log(`  ${session.id.slice(0, 8)}  ${date}  ${session.messageCount} messages`)
     }
     

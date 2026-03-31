@@ -33,7 +33,7 @@ export async function initCommand(context: CLIContext, options: InitOptions): Pr
   
   // Set defaults
   if (options.provider) {
-    configManager.set("provider", options.provider)
+    configManager.set("provider", options.provider as "openai" | "anthropic" | "google" | undefined)
   }
   
   if (options.model) {
