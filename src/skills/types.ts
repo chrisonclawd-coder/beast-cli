@@ -1,10 +1,8 @@
 /**
- * Beast CLI — Skills & Hooks
+ * Beast CLI — Skills Types
  * 
- * Inspired by Claude Code's skills + hooks system.
+ * Types for the skills system.
  */
-
-// ============ SKILLS ============
 
 export interface Skill {
   name: string
@@ -19,34 +17,4 @@ export interface Skill {
 export interface SkillManifest {
   version: 1
   skills: Record<string, Skill>
-}
-
-// ============ HOOKS ============
-
-export type HookEvent =
-  | "beforeToolCall"
-  | "afterToolCall"
-  | "beforeFileWrite"
-  | "afterFileWrite"
-  | "beforeBash"
-  | "afterBash"
-  | "onSessionStart"
-  | "onSessionEnd"
-  | "onCompaction"
-  | "onError"
-
-export interface Hook {
-  event: HookEvent
-  command: string          // shell command to run
-  condition?: string       // optional condition expression
-  timeout?: number         // ms
-}
-
-export interface HookContext {
-  event: HookEvent
-  tool?: string
-  params?: Record<string, unknown>
-  result?: unknown
-  session?: string
-  timestamp: number
 }
