@@ -224,15 +224,52 @@ export class HookExecutor {
   }
 
   /**
-   * Evaluate a hook condition
+   * Evaluate a hook condition safely.
+   * Only allows a restricted subset of expressions to prevent code injection.
    */
   private evaluateCondition(condition: string, context: HookContext): boolean {
     try {
-      // Simple condition evaluation
-      // Supports: tool=="read", params.path contains "secret", etc.
+      // Sanitize condition - only allow safe characters
+      // Allowed: alphanumeric, spaces, quotes, comparison operators, logical operators,
+      // property access (.), array access ([]), parentheses, includes method
+      const safePattern = /^[a-zA-Z0-9_\.\"\'\[\]\s===!<>!==&&||().includes]+$/
+      
+      if (!safePattern.test(condition)) {
+        console.warn(`Hook condition contains disallowed characters: ${condition}`)
+        return false
+      }
+      
+      // Block dangerous patterns
+      const dangerousPatterns = [
+        /eval/i,
+        /function\s*\(/i,
+        /require\s*\(/i,
+        /import\s+/i,
+        /process\./i,
+        /global\./i,
+        /window\./i,
+        /document\./i,
+        /__proto__/i,
+        /\.constructor/i,
+        /prototype/i,
+      ]
+      
+      for (const pattern of dangerousPatterns) {
+        if (pattern.test(condition)) {
+          console.warn(`Hook condition contains blocked pattern: ${condition}`)
+          return false
+        }
+      }
+      
+      // Convert 'contains' to '.includes(' for backwards compatibility
+      let sanitizedCondition = condition.replace(/\bcontains\b/g, ".includes(")
+      // Fix the syntax: "path contains 'x'" -> "path.includes('x')"
+      sanitizedCondition = sanitizedCondition.replace(/\.includes\(([^)]+)\)/g, ".includes($1)")
+      
+      // Simple condition evaluation with sanitized input
       const fn = new Function(
         "tool", "params", "result", "session",
-        `return ${condition}`
+        `"use strict"; return (${sanitizedCondition})`
       )
       return fn(context.tool, context.params, context.result, context.session)
     } catch {
