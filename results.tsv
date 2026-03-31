@@ -3,3 +3,5 @@ timestamp	feature	source_cli	status	notes
 2025-03-31T14:35	tool-executor	OpenCode	COMPLETE	Executor with permission checks + builtin tools
 2025-03-31T14:40	execute-plan-agents	OpenCode/ClaudeCode	COMPLETE	Execute agent (full tool access) + Plan agent (read-only)
 2025-03-31T14:45	config-management	GeminiCLI	COMPLETE	.beast/config.json loading/saving with zod validation
+2026-03-31T14:46:59+00:00	ink-tui	OpenCode	COMPLETE	ChatView, InputBar, BeastApp components with vim mode
+2026-03-31T14:48:54+00:00	skills-loader	ClaudeCode	COMPLETE	SkillLoader with SKILL.md parsing and caching
