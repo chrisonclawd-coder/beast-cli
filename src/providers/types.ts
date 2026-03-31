@@ -19,7 +19,7 @@ export interface ToolCall {
 }
 
 export interface ResponseChunk {
-  type: "text" | "tool_call" | "tool_result" | "thinking" | "done"
+  type: "text" | "tool_call" | "tool_result" | "thinking" | "reasoning" | "done"
   content?: string
   toolCall?: ToolCall
   toolResult?: { id: string; content: string }

@@ -113,6 +113,17 @@ class ProviderRegistry {
       this.defaultProvider = discovered[0]
     }
 
+    // Auto-instantiate discovered providers so listActive() works
+    for (const id of discovered) {
+      if (!this.providers.has(id)) {
+        try {
+          const factory = this.factories.get(id)!
+          const provider = factory({})
+          this.providers.set(id, provider)
+        } catch { /* skip failed instantiations */ }
+      }
+    }
+
     return discovered
   }
 

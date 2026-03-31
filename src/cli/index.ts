@@ -94,6 +94,9 @@ async function cmdChat() {
         if (chunk.type === "text" && chunk.content) {
           process.stdout.write(chunk.content)
           fullResponse += chunk.content
+        } else if (chunk.type === "reasoning" && chunk.content) {
+          // Show thinking in dim gray
+          process.stdout.write(`\x1b[90m${chunk.content}\x1b[0m`)
         } else if (chunk.type === "done") {
           process.stdout.write("\n")
           if (chunk.usage) {

@@ -222,8 +222,9 @@ export class OpenAICompatibleProvider implements Provider {
         buffer = lines.pop() || ""
 
         for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = line.slice(6)
+          const trimmed = line.trim()
+          if (trimmed.startsWith("data: ")) {
+            const data = trimmed.slice(6)
             if (data === "[DONE]") {
               yield { type: "done" }
               return
@@ -235,6 +236,10 @@ export class OpenAICompatibleProvider implements Provider {
 
               if (delta?.content) {
                 yield { type: "text", content: delta.content }
+              }
+
+              if (delta?.reasoning_content) {
+                yield { type: "reasoning", content: delta.reasoning_content }
               }
 
               if (delta?.tool_calls) {
