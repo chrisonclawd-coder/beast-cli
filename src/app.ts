@@ -38,7 +38,10 @@ export class BeastApp {
   private activeProvider: Provider | null = null
   private activeModel = ""
 
-  constructor(private appConfig: BeastAppConfig) {
+  private appConfig_: BeastAppConfig
+  activeModel = ""
+  constructor(appConfig: BeastAppConfig) {
+    this.appConfig_ = appConfig
     this.config = new ConfigManager(appConfig.projectRoot)
     this.providers = new ProviderRegistry()
     this.tools = new ToolExecutor()
@@ -217,6 +220,8 @@ export class BeastApp {
     this.activeModel = modelId
   }
 
+  get appConfig() { return this.appConfig_ }
+
   getActiveProvider(): Provider {
     if (!this.activeProvider) {
       const active = this.providers.listActive()
@@ -251,7 +256,7 @@ export class BeastApp {
       tools: this.tools,
       systemPrompt: this.buildSystemPrompt(),
       maxIterations: 10,
-      workingDir: this.appConfig.projectRoot,
+      workingDir: this.appConfig_.projectRoot,
     })
 
     const lastUser = messages.length > 0 ? messages[messages.length - 1].content : ""
@@ -265,21 +270,42 @@ export class BeastApp {
       provider,
       model: this.activeModel,
       systemPrompt: this.buildSystemPrompt(),
-      workingDir: this.appConfig.projectRoot,
+      workingDir: this.appConfig_.projectRoot,
     })
 
     const result = await agent.plan(task)
     return result.content
   }
 
-  private buildSystemPrompt(): string {
+  buildSystemPrompt(): string {
     const parts = [
-      "You are Beast CLI, an AI coding assistant.",
-      `Working directory: ${this.appConfig.projectRoot}`,
+      "You are Beast CLI, an expert AI coding agent with full access to file operations and shell commands.",
+      `Working directory: ${this.appConfig_.projectRoot}`,
+      "",
+      "You have these tools available:",
+      "  - readFile: Read file contents",
+      "  - writeFile: Create or overwrite files",
+      "  - editFile: Make precise edits to existing files",
+      "  - bash: Execute shell commands",
+      "  - glob: Find files by pattern",
+      "  - grep: Search file contents (pattern matching)",
+      "",
+      "When the user asks you to do something:",
+      "1. Read relevant files to understand the codebase",
+      "2. Plan your approach briefly",
+      "3. Make changes using editFile or writeFile",
+      "4. Verify with bash (run tests, build, etc.) if applicable",
+      "5. Report what you did concisely",
+      "",
+      "Rules:",
+      "- Make minimal, targeted edits — don't rewrite entire files",
+      "- Always read a file before editing it",
+      "- Use bash for running commands (npm test, git status, etc.)",
+      "- Be concise in explanations, thorough in execution",
     ]
     const skills = this.skills.getCached()
     if (skills.length > 0) {
-      parts.push(`Loaded skills: ${skills.map(s => s.name).join(", ")}`)
+      parts.push(`\nLoaded skills: ${skills.map(s => s.name).join(", ")}`)
     }
     return parts.join("\n")
   }

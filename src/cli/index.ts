@@ -4,6 +4,7 @@
 
 import * as readline from "readline"
 import * as path from "path"
+import chalk from "chalk"
 import { BeastApp } from "../app"
 import { SwarmCoordinator, SwarmCoordinatorConfig } from "../agents/swarm"
 import { ExecuteAgent } from "../agents/execute"
@@ -67,54 +68,61 @@ async function cmdChat() {
   app.setActiveProvider(providerId, modelId)
 
   console.log(`🦁 Beast CLI — ${providerId}/${modelId}`)
-  console.log("Type your message. Ctrl+C to exit. /help for commands.\n")
+  console.log("Coding agent ready. Describe what you want done.\n")
 
-  const messages: Message[] = []
+  // Build ExecuteAgent with tool callbacks for rich UI
+  const agent = new ExecuteAgent({
+    provider: app.getActiveProvider(),
+    model: app.activeModel,
+    tools: app.tools,
+    systemPrompt: app.buildSystemPrompt(),
+    maxIterations: 50,
+    workingDir: app.appConfig.projectRoot,
+    onToolCall: (tool: string, params: Record<string, unknown>) => {
+      // Show tool invocation
+      const args = Object.entries(params)
+        .map(([k, v]) => `${k}=${typeof v === "string" && v.length > 60 ? '"' + v.substring(0, 60) + '…"' : JSON.stringify(v)}`)
+        .join(", ")
+      process.stdout.write(`\n${chalk.cyan("⟐")} ${chalk.bold(tool)}(${chalk.gray(args)})\n`)
+    },
+    onToolResult: (result: any) => {
+      const content = result.result?.content || ""
+      const lines = content.split("\n").slice(0, 8).join("\n")
+      const truncated = content.split("\n").length > 8
+      if (lines) {
+        process.stdout.write(`${chalk.gray("  →")} ${chalk.dim(lines.split("\n").join("\n    "))}${truncated ? chalk.dim("\n    …") : ""}\n`)
+      }
+    },
+    onToken: (token: string) => {
+      process.stdout.write(token)
+    },
+  })
+
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
-
-  const prompt = () => { rl.setPrompt("You> "); rl.prompt() }
+  const prompt = () => { rl.setPrompt(`${chalk.green("❯")} `); rl.prompt() }
 
   rl.on("line", async (line) => {
     const input = line.trim()
     if (!input) { prompt(); return }
 
     if (input.startsWith("/")) {
-      await handleSlash(input, app, messages)
+      await handleSlash(input, app, [])
       prompt()
       return
     }
 
-    messages.push({ role: "user", content: input })
-
     try {
-      let fullResponse = ""
-      process.stdout.write("Beast> ")
+      process.stdout.write(`${chalk.yellow("⏳")} Working…\n\n`)
 
-      for await (const chunk of app.chat(messages)) {
-        if (chunk.type === "text" && chunk.content) {
-          process.stdout.write(chunk.content)
-          fullResponse += chunk.content
-        } else if (chunk.type === "reasoning" && chunk.content) {
-          // Show thinking in dim gray
-          process.stdout.write(`\x1b[90m${chunk.content}\x1b[0m`)
-        } else if (chunk.type === "done") {
-          process.stdout.write("\n")
-          if (chunk.usage) {
-            console.log(`  [${formatTokens(chunk.usage.inputTokens + chunk.usage.outputTokens)} tokens]`)
-          }
-        }
+      const response = await agent.continueConversation(input)
+
+      // Show final response
+      if (response.content) {
+        console.log(`\n${chalk.green("✓")} Done [${response.iterations} step${response.iterations !== 1 ? "s" : ""}, ${formatTokens(response.totalTokens.input + response.totalTokens.output)} tokens]`)
       }
-
-      messages.push({ role: "assistant", content: fullResponse })
-
-      if (messages.length > 50) {
-        const { messages: compacted } = await app.compactor.compact(messages)
-        messages.length = 0
-        messages.push(...compacted)
-        console.log("  [Auto-compacted]")
-      }
+      console.log()
     } catch (err: any) {
-      console.error(`\nError: ${err.message}`)
+      console.error(`\n${chalk.red("✗")} ${err.message}\n`)
     }
     prompt()
   })

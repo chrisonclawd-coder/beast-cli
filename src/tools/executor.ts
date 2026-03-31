@@ -246,17 +246,67 @@ export class ToolExecutor {
  * Simple Zod to JSON Schema converter
  */
 function zodToJsonSchema(zodSchema: unknown): Record<string, unknown> {
-  // Basic conversion - in production, use a proper library
-  // This is a simplified version
+  // Zod v3+ has a built-in .toJsonSchema() or we introspect
+  // Use Zod's internal _def to extract shape
   const schema: Record<string, unknown> = {
     type: "object",
-    properties: {},
-    required: [],
+    properties: {} as Record<string, unknown>,
+    required: [] as string[],
   }
-  
-  // For now, return a generic object schema
-  // A proper implementation would introspect the Zod schema
+
+  try {
+    // @ts-ignore - Zod internal
+    const def = zodSchema?._def
+    if (!def) return schema
+
+    if (def.typeName === "ZodObject") {
+      const shape = def.shape()
+      const properties: Record<string, unknown> = {}
+      const required: string[] = []
+
+      for (const [key, value] of Object.entries(shape)) {
+        properties[key] = zodTypeToJsonSchema(value as any)
+        // Check if optional
+        // @ts-ignore
+        if (value?._def?.typeName !== "ZodOptional") {
+          required.push(key)
+        }
+      }
+
+      schema.properties = properties
+      schema.required = required
+    }
+  } catch {
+    // Fallback to generic
+  }
+
   return schema
+}
+
+function zodTypeToJsonSchema(zodType: any): Record<string, unknown> {
+  const def = zodType?._def
+  if (!def) return { type: "string" }
+
+  switch (def.typeName) {
+    case "ZodString":
+      return { type: "string", description: def.description || zodType.description || undefined }
+    case "ZodNumber":
+      return { type: "number", description: zodType.description || undefined }
+    case "ZodBoolean":
+      return { type: "boolean", description: zodType.description || undefined }
+    case "ZodArray":
+      return { type: "array", items: zodTypeToJsonSchema(def.type) }
+    case "ZodOptional":
+      return zodTypeToJsonSchema(def.innerType)
+    case "ZodDefault":
+      return zodTypeToJsonSchema(def.innerType)
+    case "ZodEnum":
+      return { type: "string", enum: def.values }
+    case "ZodRecord":
+      return { type: "object" }
+    default:
+      return { type: "string", description: zodType.description || undefined }
+  }
 }
 
 // Create a default executor instance

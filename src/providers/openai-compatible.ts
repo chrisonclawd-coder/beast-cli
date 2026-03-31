@@ -211,6 +211,7 @@ export class OpenAICompatibleProvider implements Provider {
 
     const decoder = new TextDecoder()
     let buffer = ""
+    const pendingToolCalls = new Map<string, { id: string; name: string; args: string }>()
 
     try {
       while (true) {
@@ -244,17 +245,41 @@ export class OpenAICompatibleProvider implements Provider {
 
               if (delta?.tool_calls) {
                 for (const tc of delta.tool_calls) {
-                  if (tc.function?.name) {
-                    yield {
-                      type: "tool_call",
-                      toolCall: {
-                        id: tc.id,
-                        name: tc.function.name,
-                        arguments: {},
-                      },
+                  const tcId = tc.id || ""
+                  const tcName = tc.function?.name || ""
+
+                  // Initialize or continue accumulating tool call
+                  if (!pendingToolCalls.has(tcId) && tcName) {
+                    pendingToolCalls.set(tcId, { id: tcId, name: tcName, args: "" })
+                  }
+
+                  // Accumulate arguments (come in pieces across chunks)
+                  if (tc.function?.arguments !== undefined) {
+                    const existing = pendingToolCalls.get(tcId)
+                    if (existing) {
+                      existing.args += tc.function.arguments
                     }
                   }
                 }
+              }
+
+              // Check if this is the finish — yield completed tool calls
+              if (parsed.choices?.[0]?.finish_reason === "tool_calls" || 
+                  parsed.choices?.[0]?.finish_reason === "stop") {
+                for (const [, tc] of pendingToolCalls) {
+                  let parsedArgs = {}
+                  try { parsedArgs = JSON.parse(tc.args || "{}") } catch { /* keep empty */ }
+                  if (process.env.BEAST_DEBUG) process.stderr.write(`[DEBUG] yielding tool_call: ${tc.name}(${JSON.stringify(parsedArgs).substring(0, 100)})\n`)
+                  yield {
+                    type: "tool_call",
+                    toolCall: {
+                      id: tc.id,
+                      name: tc.name,
+                      arguments: parsedArgs,
+                    },
+                  }
+                }
+                pendingToolCalls.clear()
               }
 
               if (parsed.usage) {
