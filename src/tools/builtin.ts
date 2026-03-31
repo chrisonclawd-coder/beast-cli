@@ -357,85 +357,195 @@ export const globTool: Tool = {
 
 // ============ GREP TOOL ============
 
+// ============ GREP TOOL (ripgrep-first) ============
+
 const grepSchema = z.object({
-  pattern: z.string().describe("Pattern to search for"),
+  pattern: z.string().describe("Pattern to search for (string or regex)"),
   path: z.string().optional().describe("Directory or file to search in"),
-  include: z.string().optional().describe("File pattern to include"),
+  include: z.string().optional().describe("Glob pattern to include (e.g. '*.ts')"),
+  exclude: z.string().optional().describe("Glob pattern to exclude"),
+  caseInsensitive: z.boolean().optional().describe("Case-insensitive search"),
+  maxResults: z.number().optional().describe("Max results to return (default 200)"),
 })
 
-export const grepTool: Tool = {
-  name: "grep",
-  description: "Search for a pattern in files",
-  parameters: grepSchema,
-  defaultPermission: "auto",
-  execute: async (params: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> => {
+/** Check if ripgrep is available on the system */
+async function hasRipgrep(): Promise<boolean> {
+  const { execFile } = await import("child_process")
+  return new Promise((resolve) => {
+    execFile("rg", ["--version"], (err) => resolve(!err))
+  })
+}
+
+/** Shell out to ripgrep — fast, respects .gitignore, handles binary files */
+async function grepWithRipgrep(
+  pattern: string,
+  searchDir: string,
+  opts: { include?: string; exclude?: string; caseInsensitive?: boolean; maxResults?: number }
+): Promise<ToolResult> {
+  const { execFile } = await import("child_process")
+  const args = [
+    "--no-heading",       // don't print file header per match
+    "--line-number",      // show line numbers
+    "--color=never",      // no ANSI colors
+    "--max-count=500",    // cap matches per file
+  ]
+
+  if (opts.caseInsensitive) args.push("-i")
+  if (opts.include) args.push("--glob", opts.include)
+  if (opts.exclude) args.push("--glob", `!${opts.exclude}`)
+  args.push("--max-count", "500")
+
+  args.push(pattern, searchDir)
+
+  return new Promise((resolve) => {
+    execFile("rg", args, { maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
+      if (err && err.code === 1) {
+        // rg exits with code 1 when no matches found
+        return resolve({ success: true, content: "No matches found.", metadata: { matches: 0 } })
+      }
+      if (err) {
+        return resolve({ success: false, content: "", error: `ripgrep error: ${err.message}` })
+      }
+
+      const lines = stdout.trim().split("\n").filter(Boolean)
+      const maxResults = opts.maxResults || 200
+      const truncated = lines.length > maxResults
+      const results = lines.slice(0, maxResults)
+
+      resolve({
+        success: true,
+        content: results.join("\n"),
+        metadata: { matches: lines.length, truncated },
+      })
+    })
+  })
+}
+
+/** Pure JS fallback — streaming, binary-safe, .gitignore-aware */
+async function grepWithJS(
+  pattern: string,
+  searchDir: string,
+  opts: { include?: string; exclude?: string; caseInsensitive?: boolean; maxResults?: number }
+): Promise<ToolResult> {
+  const fs = await import("fs/promises")
+  const path = await import("path")
+  const { createReadStream } = await import("fs")
+  const readline = await import("readline")
+
+  const maxResults = opts.maxResults || 200
+  const maxFileSize = 1024 * 1024 // skip files > 1MB
+  const results: string[] = []
+  let totalMatches = 0
+  const regex = new RegExp(
+    pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), // escape for literal match
+    opts.caseInsensitive ? "i" : ""
+  )
+
+  // Load .gitignore patterns (simple)
+  let ignorePatterns: string[] = ["node_modules", ".git", "dist", ".next", "__pycache__", ".cache"]
+  try {
+    const gitignore = await fs.readFile(path.join(searchDir, ".gitignore"), "utf-8")
+    ignorePatterns.push(...gitignore.split("\n").map(l => l.trim()).filter(l => l && !l.startsWith("#")))
+  } catch { /* no .gitignore */ }
+
+  function isIgnored(relPath: string): boolean {
+    return ignorePatterns.some(p => relPath.startsWith(p) || relPath.includes("/" + p + "/"))
+  }
+
+  function isBinary(chunk: Buffer): boolean {
+    for (let i = 0; i < Math.min(chunk.length, 8192); i++) {
+      if (chunk[i] === 0) return true
+    }
+    return false
+  }
+
+  async function searchFile(filePath: string): Promise<void> {
     try {
-      const fs = await import("fs/promises")
-      const path = await import("path")
-      
-      // Validate path to prevent traversal attacks
-      const pathValidation = validatePath(ctx.workingDir, (params.path as string) || ".")
-      if (!pathValidation.valid) {
-        return {
-          success: false,
-          content: "",
-          error: pathValidation.error,
-        }
-      }
-      
-      const searchDir = pathValidation.resolvedPath
-      const pattern = params.pattern as string
-      const includePattern = (params.include as string) || "*"
-      
-      const results: string[] = []
-      
-      async function searchFile(filePath: string): Promise<void> {
-        try {
-          const content = await fs.readFile(filePath, "utf-8")
-          const lines = content.split("\n")
-          const relativePath = path.relative(searchDir, filePath)
-          
-          lines.forEach((line, index) => {
-            if (line.includes(pattern)) {
-              results.push(`${relativePath}:${index + 1}: ${line.trim()}`)
-            }
-          })
-        } catch {
-          // Skip binary or unreadable files
-        }
-      }
-      
-      async function walk(dir: string): Promise<void> {
-        const entries = await fs.readdir(dir, { withFileTypes: true })
-        for (const entry of entries) {
-          const fullPath = path.join(dir, entry.name)
-          if (entry.isDirectory()) {
-            if (!entry.name.startsWith(".") && entry.name !== "node_modules") {
-              await walk(fullPath)
-            }
-          } else if (entry.isFile()) {
-            const relativePath = path.relative(searchDir, fullPath)
-            if (matchGlob(relativePath, includePattern)) {
-              await searchFile(fullPath)
-            }
+      const stat = await fs.stat(filePath)
+      if (stat.size > maxFileSize) return
+
+      // Quick binary check on first 8KB
+      const handle = await fs.open(filePath, "r")
+      const header = Buffer.alloc(8192)
+      await handle.read(header, 0, 8192, 0)
+      await handle.close()
+      if (isBinary(header)) return
+
+      // Stream line by line
+      const rl = readline.createInterface({ input: createReadStream(filePath), crlfDelay: Infinity })
+      let lineNum = 0
+      const relativePath = path.relative(searchDir, filePath)
+
+      for await (const line of rl) {
+        lineNum++
+        if (regex.test(line)) {
+          results.push(`${relativePath}:${lineNum}: ${line.trim()}`)
+          totalMatches++
+          if (totalMatches >= maxResults) {
+            rl.close()
+            return
           }
         }
       }
-      
-      await walk(searchDir)
-      
-      return {
-        success: true,
-        content: results.slice(0, 100).join("\n"),
-        metadata: { matches: results.length, truncated: results.length > 100 },
-      }
-    } catch (error) {
-      return {
-        success: false,
-        content: "",
-        error: error instanceof Error ? error.message : String(error),
+    } catch { /* skip unreadable */ }
+  }
+
+  async function walk(dir: string): Promise<void> {
+    if (totalMatches >= maxResults) return
+    let entries
+    try { entries = await fs.readdir(dir, { withFileTypes: true }) } catch { return }
+
+    for (const entry of entries) {
+      if (totalMatches >= maxResults) return
+      const fullPath = path.join(dir, entry.name)
+      const relativePath = path.relative(searchDir, fullPath)
+
+      if (entry.isDirectory()) {
+        if (!isIgnored(relativePath)) await walk(fullPath)
+      } else if (entry.isFile()) {
+        if (isIgnored(relativePath)) continue
+        if (opts.include && !matchGlob(relativePath, opts.include)) continue
+        await searchFile(fullPath)
       }
     }
+  }
+
+  await walk(searchDir)
+
+  return {
+    success: true,
+    content: results.length ? results.join("\n") : "No matches found.",
+    metadata: { matches: totalMatches, truncated: totalMatches >= maxResults },
+  }
+}
+
+export const grepTool: Tool = {
+  name: "grep",
+  description: "Search for a pattern in files (uses ripgrep when available, falls back to JS)",
+  parameters: grepSchema,
+  defaultPermission: "auto",
+  execute: async (params: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult> => {
+    const pathModule = await import("path")
+
+    // Validate path to prevent traversal attacks
+    const pathValidation = validatePath(ctx.workingDir, (params.path as string) || ".")
+    if (!pathValidation.valid) {
+      return { success: false, content: "", error: pathValidation.error }
+    }
+
+    const searchDir = pathValidation.resolvedPath
+    const opts = {
+      include: params.include as string | undefined,
+      exclude: params.exclude as string | undefined,
+      caseInsensitive: params.caseInsensitive as boolean | undefined,
+      maxResults: (params.maxResults as number) || 200,
+    }
+
+    // Use ripgrep if available, otherwise fall back to pure JS
+    if (await hasRipgrep()) {
+      return grepWithRipgrep(params.pattern as string, searchDir, opts)
+    }
+    return grepWithJS(params.pattern as string, searchDir, opts)
   },
 }
 
