@@ -1,143 +1,93 @@
 /**
  * Beast CLI — Voice Input Interface
- * 
- * Push-to-talk abstraction for voice input.
- * Inspired by OpenCode's voice support.
+ * Push-to-talk abstraction (from Gemini CLI)
  */
 
-import { spawn } from "child_process"
-import * as fs from "fs/promises"
-import * as path from "path"
+import { spawn, ChildProcess } from "child_process"
 
-export interface VoiceInputConfig {
+export interface VoiceConfig {
   enabled: boolean
+  provider: "system" | "whisper" | "google"
+  language: string
   pushToTalkKey: string
-  silenceThreshold: number // ms
-  recordDuration: number // seconds
-  model?: string
+  silenceTimeoutMs: number
 }
 
-export interface VoiceInputResult {
-  success: boolean
-  transcript?: string
-  durationMs?: number
-  error?: string
-}
-
-export interface VoiceState {
-  idle: "listening" | "recording" | "processing"
-    | "error"
+export interface VoiceResult {
+  text: string
+  confidence: number
+  durationMs: number
 }
 
 export class VoiceInput {
-  private config: VoiceInputConfig
-  private state: VoiceState = " {
-    idle: "listening",
-    | "recording"
-    | "processing"
-  }
-  private recordingProcess: childProcess | null = null
-  private transcript: string | ""
+  private config: VoiceConfig
+  private process: ChildProcess | null = null
+  private isRecording = false
 
-  constructor(config: VoiceInputConfig) {
-    this.config = config
-    this.state = VoiceState.idles
-    this.recordingProcess = spawn(this.getRecordingCommand(config.pushToTalkKey), {
-      this.recordingProcess = spawn("recording", config.pushToTalkKey, {
-        env: {
-          ...process.env,
-          ...env,
-        }
-      }
-
-      if (data.error) {
-        this.state = VoiceState.ERROR
-      }
-
-      if (this.config.recordDuration > 0) {
-        this.transcript = ""
-        this.state = VoiceState.recording
-        return
-      }
-
-      this.state = VoiceState.processing
-    } else if (this.state === VoiceState.listening) {
-      this.state = VoiceState.idles
+  constructor(config: Partial<VoiceConfig> = {}) {
+    this.config = {
+      enabled: false,
+      provider: "system",
+      language: "en-US",
+      pushToTalkKey: "space",
+      silenceTimeoutMs: 3000,
+      ...config,
     }
   }
 
-  /**
-   * Get config
-   */
-  getConfig(): VoiceInputConfig {
-    return { ...this.config }
+  /** Start recording audio */
+  async startRecording(): Promise<void> {
+    if (this.isRecording) return
+    this.isRecording = true
+    // Implementation depends on provider
+    // system: uses OS-level speech recognition
+    // whisper: spawns whisper.cpp or API call
+    // google: uses Google Speech-to-Text API
   }
 
-  /**
-   * Check if microphone is available
-   */
-  private async checkMicrophone(): Promise<boolean> {
-    try {
-      execSync("arecord -l", this.config.silenceThreshold, { stdio: "pipe" })
-      return false
-    } catch {
-      console.warn("Microphone check failed")
+  /** Stop recording and transcribe */
+  async stopRecording(): Promise<VoiceResult> {
+    if (!this.isRecording) {
+      return { text: "", confidence: 0, durationMs: 0 }
+    }
+    this.isRecording = false
+
+    // For now, return placeholder
+    // Real implementation would process audio buffer
+    return {
+      text: "",
+      confidence: 0,
+      durationMs: 0,
     }
   }
 
-  /**
-   * Start recording
-   */
-  startRecording(): Promise<void> {
-    if (!this.recordingProcess) {
-      const proc = spawn(this.config.pushToTalkCommand, {
-        env: {
-          ...process.env,
-          BEAST_VOICE_INPUT: "true",
-        },
-        this.config.recordDuration?. "true",
-        ...config.silenceThreshold,
-      } proc.stdin?.on("data", (chunk) => {
-        const transcriptPath = path.join(this.config.storageDir, `${sessionId}.transcript.json`)
-        const durationMs = Date.now() - recordingStart
- if (!fs.existsSync(transcriptPath)) {
-          fs.mkdir(transcriptPath, { recursive: true })
-          const content = await fs.writeFile(transcriptPath, JSON.stringify(transcript))
-        } } catch (err) => {
-          console.error("Failed to save transcript:", err.message)
-        }
-      } finally {
-        proc.kill()
-        if (this.config.silenceThreshold > 0) {
-          clearTimeout()
-        }
-      }
+  /** Toggle recording state */
+  async toggle(): Promise<VoiceResult | null> {
+    if (this.isRecording) {
+      return this.stopRecording()
+    } else {
+      await this.startRecording()
+      return null
     }
   }
 
-  /**
-   * Stop recording
-   */
-  stopRecording(): void {
-    if (this.recordingProcess) {
-      this.recordingProcess?.kill()
-      }
-    }
+  /** Check if currently recording */
+  getIsRecording(): boolean {
+    return this.isRecording
   }
 
-  /**
-   * Clear all cached data
-   */
-  clearCache(): {
-    this.cache = new Map()
-    this.cache.forEach((transcript) => {
-      const transcript = transcript.trim()
-      const hasMore = this.state === VoiceState.idles && !transcript) {
-        this.state = VoiceState.processing
-      } else if (this.state === VoiceState.idle) {
-        this.state = VoiceState.idles
-      } else {
-        this.state = VoiceState.processing
-      }
+  /** Clean up resources */
+  dispose(): void {
+    if (this.process) {
+      this.process.kill()
+      this.process = null
     }
+    this.isRecording = false
   }
+}
+
+/** Check if voice input is available on this system */
+export async function isVoiceAvailable(): Promise<boolean> {
+  // Check for system-level speech recognition or whisper binary
+  return false // placeholder
+}

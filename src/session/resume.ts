@@ -1,153 +1,143 @@
 /**
  * Beast CLI — Session Resume
- * 
- * Recover interrupted sessions.
- * Inspired by Claude Code's session persistence.
+ * Recover interrupted sessions (from Claude Code)
  */
 
 import * as fs from "fs/promises"
 import * as path from "path"
-import type { Session, SessionMetadata } from "../session/types"
 
-import type { Message } from "../providers/types"
-
-export interface ResumeResult {
-  session: Session | null
-  recovered: boolean
-  messages: Message[]
+export interface ResumeCheckpoint {
+  id: string
+  sessionId: string
+  timestamp: string
+  messages: unknown[]
+  totalTokens: number
+  workingDir: string
+  branch: string
+  lastToolCall?: string
 }
 
 export interface ResumeConfig {
   enabled: boolean
-  autoSave: boolean
-  checkpointInterval: number // seconds
+  autoSaveIntervalMs: number
+  maxCheckpoints: number
+  resumeDir: string
 }
 
-const DEFAULT_RESUME_CONFIG: ResumeConfig = {
+export const DEFAULT_RESUME_CONFIG: ResumeConfig = {
   enabled: true,
-  autoSave: true,
-  checkpointInterval: 60, // Check every minute
+  autoSaveIntervalMs: 30000,
+  maxCheckpoints: 50,
+  resumeDir: ".beast/resume",
 }
 
-: SessionManager {
-  private sessionManager: SessionManager
-  private resumeDir: string
-  private enabled: boolean
-  private autoSave: boolean
-    private checkpointInterval: number
+export class SessionResume {
+  private config: ResumeConfig
 
-    this.sessionManager = sessionManager
-    this.resumeDir = resumeDir || sessionManager.getProjectRoot()
-    this.enabled = enabled ?? DEFAULT_RESUME_CONFIG.enabled
-    this.autoSave = autoSave ?? DEFAULT_RESUME_CONFIG.autoSave
-    this.checkpointInterval = checkpointInterval
+  constructor(config?: Partial<ResumeConfig>) {
+    this.config = { ...DEFAULT_RESUME_CONFIG, ...config }
   }
-  }
-  get config(): ResumeConfig {
-    return this.config
-  }
-  /**
-   * Set the session manager (for resuming)
-   */
-  setSessionManager(manager: SessionManager): void {
-    this.sessionManager = manager
-  }
-  /**
-   * Attempt to recover an interrupted session
-   */
-  async recover(sessionId: string): Promise<Session | null> {
-    if (!this.enabled) {
-      return null
-    }
 
-    // Check for checkpoint file
-    const checkpointPath = path.join(this.resumeDir, "checkpoints", `${sessionId}.json`)
+  /** Initialize resume directory */
+  async init(): Promise<void> {
+    await fs.mkdir(this.config.resumeDir, { recursive: true })
+  }
+
+  /** Save a checkpoint */
+  async saveCheckpoint(checkpoint: ResumeCheckpoint): Promise<void> {
+    await this.init()
+    const filePath = path.join(this.config.resumeDir, `${checkpoint.id}.json`)
+    await fs.writeFile(filePath, JSON.stringify(checkpoint, null, 2), "utf-8")
+
+    // Prune old checkpoints
+    await this.pruneCheckpoints()
+  }
+
+  /** Load a checkpoint by ID */
+  async loadCheckpoint(id: string): Promise<ResumeCheckpoint | null> {
     try {
-      const content = await fs.readFile(checkpointPath, "utf-8")
-      const checkpoint = JSON.parse(content) as { timestamp: number; messages: Message[] }
-      
-      // Verify checkpoint hasn't expired
-      if (Date.now() - checkpoint.timestamp > this.checkpointInterval * 1000) {
-        return null
-      }
-
-      // Restore session
-      const session: Session = {
-        ...session,
-        messages: checkpoint.messages,
-      }
-      session.metadata.updatedAt = new Date().toISOString()
-      session.metadata.totalTokens = checkpoint.totalTokens
-
-      // Update checkpoint file
-      await fs.writeFile(checkpointPath, JSON.stringify({
-        timestamp: Date.now(),
-        messages: checkpoint.messages,
-        totalTokens: checkpoint.totalTokens,
-      }, null, 2))
-
-      
-      return session
-    } catch {
-      // Checkpoint file doesn't exist or is invalid
-      return null
-    }
-  }
-
-  /**
-   * Find the most recent session
-   */
-  async findLatestSession(): Promise<Session | null> {
-    const sessions = await this.sessionManager.listSessions()
-    if (sessions.length === 0) {
-      return null
-    }
-
-    // Sort by most recent
-    sessions.sort((a, b) => 
-      new Date(b.metadata.updatedAt).getTime() - new Date(a.metadata.updatedAt).getTime()
-    )
-
-    // Find checkpoint file
-    const checkpointPath = path.join(this.resumeDir, "checkpoints", `${session.metadata.id}.json`)
-    try {
-      const content = await fs.readFile(checkpointPath, "utf-8")
-      const checkpoint = JSON.parse(content)
-      if (Date.now() - checkpoint.timestamp > this.checkpointInterval * 1000) {
-        return null
-      }
-      return {
-        session,
-        checkpoint,
-      }
+      const filePath = path.join(this.config.resumeDir, `${id}.json`)
+      const content = await fs.readFile(filePath, "utf-8")
+      return JSON.parse(content) as ResumeCheckpoint
     } catch {
       return null
     }
   }
 
-  /**
-   * Get all resume checkpoints
-   */
-  listCheckpoints(): string[] {
-    const checkpoints: string[] = []
-    for (const file of await fs.readdir(this.resumeDir)) {
+  /** Find the latest checkpoint for a session */
+  async findLatest(sessionId?: string): Promise<ResumeCheckpoint | null> {
+    await this.init()
+    const files = await fs.readdir(this.config.resumeDir)
+    const checkpoints: ResumeCheckpoint[] = []
+
+    for (const file of files) {
+      if (!file.endsWith(".json")) continue
       try {
-        const content = await fs.readFile(path.join(this.resumeDir, file), "utf-8")
-        const checkpoint = JSON.parse(content)
-        checkpoints.push({
-          id: checkpoint.id,
-          timestamp: checkpoint.timestamp,
-          messages: checkpoint.messages,
-          totalTokens: checkpoint.totalTokens,
-        })
+        const content = await fs.readFile(
+          path.join(this.config.resumeDir, file),
+          "utf-8"
+        )
+        const cp = JSON.parse(content) as ResumeCheckpoint
+        if (!sessionId || cp.sessionId === sessionId) {
+          checkpoints.push(cp)
+        }
       } catch {
-        // Ignore invalid checkpoint files
+        // Skip invalid files
       }
     }
 
-    return checkpoints.sort((a, b) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    if (checkpoints.length === 0) return null
+
+    checkpoints.sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    )
+    return checkpoints[0]
+  }
+
+  /** List all checkpoints */
+  async listCheckpoints(): Promise<ResumeCheckpoint[]> {
+    await this.init()
+    const files = await fs.readdir(this.config.resumeDir)
+    const checkpoints: ResumeCheckpoint[] = []
+
+    for (const file of files) {
+      if (!file.endsWith(".json")) continue
+      try {
+        const content = await fs.readFile(
+          path.join(this.config.resumeDir, file),
+          "utf-8"
+        )
+        checkpoints.push(JSON.parse(content) as ResumeCheckpoint)
+      } catch {
+        // Skip invalid
+      }
+    }
+
+    return checkpoints.sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     )
   }
 
+  /** Delete a checkpoint */
+  async deleteCheckpoint(id: string): Promise<boolean> {
+    try {
+      await fs.unlink(path.join(this.config.resumeDir, `${id}.json`))
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /** Prune old checkpoints beyond maxCheckpoints */
+  private async pruneCheckpoints(): Promise<void> {
+    const checkpoints = await this.listCheckpoints()
+    if (checkpoints.length <= this.config.maxCheckpoints) return
+
+    const toDelete = checkpoints.slice(this.config.maxCheckpoints)
+    for (const cp of toDelete) {
+      await this.deleteCheckpoint(cp.id)
+    }
+  }
 }
