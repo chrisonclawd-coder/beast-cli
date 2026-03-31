@@ -166,7 +166,7 @@ export class HookExecutor {
   }
 
   /**
-   * Run a shell command
+   * Run a shell command with proper cleanup
    */
   private runCommand(
     command: string,
@@ -196,6 +196,14 @@ export class HookExecutor {
 
       let stdout = ""
       let stderr = ""
+      let resolved = false
+
+      const cleanup = () => {
+        proc.stdout?.removeAllListeners("data")
+        proc.stderr?.removeAllListeners("data")
+        proc.removeAllListeners("close")
+        proc.removeAllListeners("error")
+      }
 
       proc.stdout?.on("data", (data) => {
         stdout += data.toString()
@@ -206,6 +214,9 @@ export class HookExecutor {
       })
 
       proc.on("close", (code) => {
+        if (resolved) return
+        resolved = true
+        cleanup()
         resolve({
           exitCode: code ?? 1,
           stdout,
@@ -214,6 +225,12 @@ export class HookExecutor {
       })
 
       proc.on("error", (err) => {
+        if (resolved) return
+        resolved = true
+        cleanup()
+        if (!proc.killed) {
+          proc.kill()
+        }
         resolve({
           exitCode: 1,
           stdout,
