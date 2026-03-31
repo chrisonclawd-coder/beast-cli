@@ -44,8 +44,8 @@ async function main() {
 
 async function cmdInit() {
   const dir = args[1] || process.cwd()
-  const { createInitCommand } = require("./init")
-  await createInitCommand(dir)
+  const { initCommand } = require("./init")
+  await initCommand({ projectRoot: dir }, {})
   console.log(`🦁 Beast initialized in ${dir}`)
 }
 
